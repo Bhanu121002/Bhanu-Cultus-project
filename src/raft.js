@@ -1,0 +1,7 @@
+const STATES = {
+  FOLLOWER: "FOLLOWER",
+  CANDIDATE: "CANDIDATE",
+  LEADER: "LEADER",
+};
+
+module.exports = STATES;

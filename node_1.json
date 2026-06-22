@@ -1,0 +1,15 @@
+{
+  "id": 1,
+  "currentTerm": 1,
+  "state": "LEADER",
+  "log": [
+    {
+      "term": 1,
+      "key": "name",
+      "value": "Bhanu"
+    }
+  ],
+  "store": {
+    "name": "Bhanu"
+  }
+}
