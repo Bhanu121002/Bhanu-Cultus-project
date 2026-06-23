@@ -1,25 +1,12 @@
 {
-  "name": "bhanu-cultus-project",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "directories": {
-    "doc": "docs",
-    "test": "tests"
-  },
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Bhanu121002/Bhanu-Cultus-project.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "name": "cultus-raft-kv",
+  "version": "2.0.0",
+  "main": "server.js",
   "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/Bhanu121002/Bhanu-Cultus-project/issues"
+  "scripts": {
+    "start": "node server.js"
   },
-  "homepage": "https://github.com/Bhanu121002/Bhanu-Cultus-project#readme"
+  "dependencies": {
+    "express": "^4.18.2"
+  }
 }

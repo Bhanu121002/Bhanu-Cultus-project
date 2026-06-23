@@ -1,40 +1,57 @@
-const Node = require("./src/node");
 const Network = require("./src/network");
+const Node = require("./src/node");
+const Raft = require("./src/raft");
 
 const network = new Network();
 
-const node1 = new Node(1);
-const node2 = new Node(2);
-const node3 = new Node(3);
+const n1 = new Node(1, network);
+const n2 = new Node(2, network);
+const n3 = new Node(3, network);
 
-network.addNode(node1);
-network.addNode(node2);
-network.addNode(node3);
+network.addNode(n1);
+network.addNode(n2);
+network.addNode(n3);
 
-node1.becomeCandidate();
-node1.becomeLeader();
+const raft1 = new Raft(n1);
+const raft2 = new Raft(n2);
+const raft3 = new Raft(n3);
 
-network.partitionNode(3);
+console.log("🚀 Starting Raft Cluster Simulation...");
 
-network.replicate(
-  node1,
-  "name",
-  "Bhanu"
-);
+// 1. Run Election Simulation
+raft1.startElection([n1, n2, n3]);
 
-console.log("\nCluster State");
+// 2. Perform Normal Safe Quorum Write
+setTimeout(() => {
+  console.log("\n--- Scenario 1: Normal Client Write ---");
+  n1.appendEntry("user", "Bhanu");
+}, 1000);
 
-console.log(
-  "Node1:",
-  node1.kvStore.getAll()
-);
+// 3. Inject Network Partition (Isolating Node 3)
+setTimeout(() => {
+  console.log("\n--- Scenario 2: Inducing Network Partition ---");
+  network.partition(1, 3);
+  network.partition(2, 3);
+}, 2000);
 
-console.log(
-  "Node2:",
-  node2.kvStore.getAll()
-);
+// 4. Client Write Request on Partitioned Active Components
+setTimeout(() => {
+  console.log("\n--- Scenario 3: Client Write During Partition Loop ---");
+  n1.appendEntry("city", "Hyderabad"); // Node 1 and Node 2 form quorum majority (2/3), so it succeeds.
+}, 3500);
 
-console.log(
-  "Node3:",
-  node3.kvStore.getAll()
-);
+// 5. Heal Network Partition
+setTimeout(() => {
+  console.log("\n--- Scenario 4: Healing Partition & Synchronizing State ---");
+  network.heal();
+}, 5000);
+
+// 6. Print Final Linear Consistent Assertions
+setTimeout(() => {
+  console.log("\n📊 FINAL LOG CONSISTENCY CHECK:");
+  network.printCluster();
+  
+  // Clean termination for automated runners
+  raft1.stopHeartbeats();
+  process.exit(0);
+}, 7000);

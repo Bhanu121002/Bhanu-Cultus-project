@@ -1,49 +1,49 @@
 const fs = require("fs");
+const path = require("path");
 
 class Persistence {
   static save(node) {
+    const dir = path.join(__dirname, "../data");
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    const file = path.join(dir, `node_${node.id}.json`);
     const data = {
       id: node.id,
-      currentTerm: node.currentTerm,
+      term: node.term,
       state: node.state,
+      votedFor: node.votedFor,
+      commitIndex: node.commitIndex,
       log: node.log,
-      store: node.kvStore.getAll(),
+      store: node.kvStore.getAll()
     };
 
-    fs.writeFileSync(
-      `node_${node.id}.json`,
-      JSON.stringify(data, null, 2)
-    );
-
-    console.log(
-      `Node ${node.id} state saved`
-    );
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
   }
 
   static load(node) {
-    const fileName = `node_${node.id}.json`;
+    const file = path.join(__dirname, "../data", `node_${node.id}.json`);
+    if (!fs.existsSync(file)) return;
 
-    if (!fs.existsSync(fileName)) {
-      console.log("No saved state found");
-      return;
-    }
+    try {
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      node.term = data.term || 0;
+      node.state = data.state || "FOLLOWER";
+      node.votedFor = data.votedFor || null;
+      node.commitIndex = data.commitIndex !== undefined ? data.commitIndex : -1;
+      node.log = data.log || [];
 
-    const data = JSON.parse(
-      fs.readFileSync(fileName)
-    );
-
-    node.currentTerm = data.currentTerm;
-    node.log = data.log;
-
-    Object.entries(data.store).forEach(
-      ([key, value]) => {
-        node.kvStore.put(key, value);
+      if (data.store) {
+        node.kvStore.clear();
+        Object.entries(data.store).forEach(([key, value]) => {
+          node.kvStore.put(key, value);
+        });
       }
-    );
-
-    console.log(
-      `Node ${node.id} recovered from disk`
-    );
+      console.log(`📂 Node ${node.id} persistent state loaded successfully.`);
+    } catch (err) {
+      console.error(`Error loading state for Node ${node.id}:`, err);
+    }
   }
 }
 

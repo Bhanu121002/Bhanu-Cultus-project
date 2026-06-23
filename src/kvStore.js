@@ -1,22 +1,22 @@
 class KeyValueStore {
   constructor() {
-    this.store = {};
+    this.store = new Map();
   }
 
   put(key, value) {
-    this.store[key] = value;
+    this.store.set(key, value);
   }
 
   get(key) {
-    return this.store[key] || null;
-  }
-
-  delete(key) {
-    delete this.store[key];
+    return this.store.get(key);
   }
 
   getAll() {
-    return this.store;
+    return Object.fromEntries(this.store);
+  }
+
+  clear() {
+    this.store.clear();
   }
 }
 
