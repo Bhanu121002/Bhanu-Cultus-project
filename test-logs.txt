@@ -1,0 +1,15 @@
+[network] listening on localhost:8001
+[network] listening on localhost:8002
+[network] listening on localhost:8003
+[Node 1] starting election for term 1
+[Node 1] won election for term 1 with 3 votes
+[Node 1] accepted write x=10
+[state] applied set x=10 at index 0
+[Node 2] applied set x=10 at index 0
+[Node 3] applied set x=10 at index 0
+[Node 1] (killed)
+[Node 2] starting election for term 2
+[Node 2] won election for term 2 with 2 votes
+[Node 2] accepted write y=20
+[Node 3] applied set y=20 at index 1
+[Node 1] (restarted) – catches up with logs

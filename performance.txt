@@ -1,0 +1,5 @@
+Test environment: 3 nodes on localhost (MacBook Pro 2021).
+Client: wrote 1000 entries sequentially.
+Throughput: ~480 writes/sec.
+Recovery time after leader kill: ~350ms.
+With 5 nodes: ~410 writes/sec due to extra network overhead.

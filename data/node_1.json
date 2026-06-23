@@ -1,9 +1,0 @@
-{
-  "id": 1,
-  "term": 3,
-  "state": "FOLLOWER",
-  "votedFor": null,
-  "commitIndex": -1,
-  "log": [],
-  "store": {}
-}

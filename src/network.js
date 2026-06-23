@@ -1,107 +1,122 @@
-const STATES = require("./states");
+import net from 'net';
+import { EventEmitter } from 'events';
 
-class Network {
-  constructor() {
-    this.nodes = [];
-    this.partitions = new Set();
+export default class NetworkLayer extends EventEmitter {
+  constructor(addr) {
+    super();
+    this.addr = addr;
+    this.server = null;
+    this.sockets = new Set(); 
+    this.latencyMs = 50;
+    this.packetLossRate = 0;
+    this.blockedPeers = new Set();
+
   }
 
-  addNode(node) {
-    this.nodes.push(node);
-  }
-
-  partition(a, b) {
-    this.partitions.add(`${a}-${b}`);
-    this.partitions.add(`${b}-${a}`);
-    console.log(`🚧 Network Partition Enabled: Node ${a} <-> Node ${b} disconnected.`);
-  }
-
-  heal() {
-    console.log("\n🔄 Healing Network Partitions...");
-    this.partitions.clear();
-
-    const leader = this.nodes.find(n => n.state === STATES.LEADER && n.state !== STATES.DOWN);
-    if (!leader) {
-      console.log("⚠️ Post-heal discovery: No valid active leader found. Re-elections will trigger.");
-      return;
-    }
-
-    // Incremental log sync using standard Raft logic rules
-    this.nodes.forEach(node => {
-      if (node.id === leader.id || node.state === STATES.DOWN) return;
-
-      console.log(`📦 Verification: Syncing logs for Node ${node.id} from Leader ${leader.id}`);
-      
-      node.log = [];
-      node.kvStore.clear();
-
-      leader.log.forEach((entry, idx) => {
-        if (entry) {
-          node.handleAppendEntries(leader.term, idx - 1, idx - 1 >= 0 ? leader.log[idx - 1].term : 0, entry);
-        }
+  // Start listening for incoming RPCs
+  start() {
+    return new Promise((resolve, reject) => {
+      this.server = net.createServer((socket) => {
+        this._handleSocket(socket);
       });
-    });
-
-    console.log("🟢 Network Healed & Cluster Synced successfully.\n");
-  }
-
-  canCommunicate(a, b) {
-    return !this.partitions.has(`${a}-${b}`);
-  }
-
-  broadcastHeartbeat(leader) {
-    this.nodes.forEach(node => {
-      if (node.id === leader.id || node.state === STATES.DOWN) return;
-
-      if (!this.canCommunicate(leader.id, node.id)) {
-        return;
-      }
-
-      node.receiveHeartbeat(leader.term, leader.id);
+      const [host, port] = this.addr.split(':');
+      this.server.listen(parseInt(port), host, () => {
+        console.log(`[network] listening on ${this.addr}`);
+        resolve();
+      });
+      this.server.on('error', reject);
     });
   }
 
-  replicate(leader, key, value) {
-    const prevLogIndex = leader.log.length - 1;
-    const prevLogTerm = prevLogIndex >= 0 ? leader.log[prevLogIndex].term : 0;
-    const entry = { term: leader.term, key, value };
-
-    let consensusCount = 1; // Counts leader
-    const activeFollowers = this.nodes.filter(n => n.id !== leader.id && n.state !== STATES.DOWN);
-
-    activeFollowers.forEach(node => {
-      if (!this.canCommunicate(leader.id, node.id)) {
-        console.log(`❌ Replication packet dropped via partition network path: Leader -> Node ${node.id}`);
-        return;
-      }
-
-      const success = node.handleAppendEntries(leader.term, prevLogIndex, prevLogTerm, entry);
-      if (success) {
-        consensusCount++;
-        console.log(`✅ Log matching success: Node ${node.id} replicated entry`);
-      }
-    });
-
-    // Write barrier linearizable consistency check (Write Quorum Rule)
-    if (consensusCount > Math.floor(this.nodes.length / 2)) {
-      leader.log.push(entry);
-      leader.kvStore.put(key, value);
-      leader.commitIndex++;
-      console.log(`👑 Leader ${leader.id} committed State change: [${key} = ${value}]`);
-      return true;
-    } else {
-      console.log(`❌ Write Aborted: Quorum mismatch. Leader isolated in minority partition.`);
-      return false;
+  stop() {
+    if (this.server) {
+      this.server.close();
+      this.server = null;
     }
   }
 
-  printCluster() {
-    console.log("\n========== Cluster State Summary ==========");
-    this.nodes.forEach(node => {
-      console.log(JSON.stringify(node.getState(), null, 2));
-    });
-    console.log("============================================\n");
-  }
+  // Send an RPC to a peer (with JSON + newline)
+  sendRPC(peerAddr, type, args, timeoutMs = 1500) {
+    return new Promise((resolve, reject) => {
+        if (this.blockedPeers.has(peerAddr)) {
+  reject(new Error('network partition'));
+  return;
 }
 
-module.exports = Network;
+if (Math.random() < this.packetLossRate) {
+  reject(new Error('packet dropped'));
+  return;
+}
+      const socket = net.createConnection(peerAddr.split(':')[1], peerAddr.split(':')[0]);
+      const timer = setTimeout(() => {
+        socket.destroy();
+        reject(new Error('RPC timeout'));
+      }, timeoutMs);
+
+      let buffer = '';
+      socket.on('data', (chunk) => {
+        buffer += chunk.toString();
+        const idx = buffer.indexOf('\n');
+        if (idx !== -1) {
+          const full = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 1);
+          socket.destroy();
+          clearTimeout(timer);
+          try {
+            resolve(JSON.parse(full));
+          } catch (e) {
+            reject(e);
+          }
+        }
+      });
+      socket.on('error', (err) => {
+        clearTimeout(timer);
+        socket.destroy();
+        reject(err);
+      });
+
+      const msg = JSON.stringify({ type, args });
+
+setTimeout(() => {
+  socket.write(msg + '\n');
+}, this.latencyMs);
+    });
+  }
+
+  // Internal: handle incoming socket
+  _handleSocket(socket) {
+    let buffer = '';
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString();
+      let boundary = buffer.indexOf('\n');
+      while (boundary !== -1) {
+        const msgStr = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 1);
+        try {
+          const msg = JSON.parse(msgStr);
+          // Emit an event for the node to handle
+          this.emit('rpc', msg, socket);
+        } catch (e) {
+          console.error('[network] invalid JSON:', msgStr);
+        }
+        boundary = buffer.indexOf('\n');
+      }
+    });
+    socket.on('error', () => {});
+  }
+  setLatency(ms) {
+  this.latencyMs = ms;
+}
+
+setPacketLoss(rate) {
+  this.packetLossRate = rate;
+}
+
+blockPeer(addr) {
+  this.blockedPeers.add(addr);
+}
+
+unblockPeer(addr) {
+  this.blockedPeers.delete(addr);
+}
+}
